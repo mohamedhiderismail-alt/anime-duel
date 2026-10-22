@@ -1,132 +1,132 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#14122B">
-<title>تحدي الشخصيات</title>
-<style>
-:root{--bg:#14122B;--s:#1F1C3D;--s2:#2A2650;--tx:#F4F2FF;--mu:#C9C5E8;--pk:#FF4D8D;--cy:#3DDBD9}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,'Segoe UI',Tahoma,sans-serif;min-height:100vh}
-#app{max-width:480px;margin:auto;padding:14px;display:flex;flex-direction:column;gap:12px;min-height:100vh}
-button,input,select{font:inherit;color:inherit}
-button{border:0;border-radius:12px;height:48px;padding:0 16px;background:var(--s2);font-weight:700;cursor:pointer}
-button.p{background:var(--pk);color:#14122B}
-button.c{background:var(--cy);color:#14122B}
-button:disabled{opacity:.4}
-input,select{height:48px;border-radius:12px;border:1px solid #4A4585;background:var(--s);padding:0 14px;width:100%}
-.card{background:var(--s);border-radius:14px;padding:12px}
-.col{display:flex;flex-direction:column;gap:8px}
-.row{display:flex;gap:8px;align-items:center}
-.sp{justify-content:space-between}
-.wrap{flex-wrap:wrap}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.ch{height:84px;padding:0;font-size:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--s)}
-.ch i{width:38px;height:38px;border-radius:50%;background:#3A3566;color:var(--cy);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:17px}
-.x{opacity:.3;text-decoration:line-through}
-.mu{color:var(--mu);font-size:13px}
-h2{margin:0;font-size:18px}
-.sheet{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:auto;max-height:70vh;overflow:auto;border-radius:16px 16px 0 0;box-shadow:0 -8px 30px #000}
-#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#FFC857;color:#14122B;padding:10px 16px;border-radius:12px;display:none;z-index:9}
-</style>
-</head>
-<body>
-<div id="app"></div>
-<div id="toast"></div>
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-const sb = createClient('https://ayvdvzxgfrolhogxjigs.supabase.co', 'sb_publishable_MDSsrqPt__mqByh2TzvEAA_ZIX119L2');
-const FN = 'super-action';
-const $ = s => document.querySelector(s), app = $('#app');
-const st = { me:null, name:localStorage.name||'', room:null, players:[], moves:[], chars:[], packs:[], secret:null, crossed:new Set(), sheet:false, guess:false, picking:false };
-let timer, last = '';
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ok = r => { if (r.error) throw r.error; return r.data; };
-const nm = id => st.players.find(p => p.user_id === id)?.display_name || 'لاعب';
-const chName = id => st.chars.find(c => c.id === id)?.name || '';
-const target = () => { const ids = st.players.map(p => p.user_id); return ids[(ids.indexOf(st.me) + 1) % ids.length]; };
-function toast(m){ const t=$('#toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',3500); }
-async function run(f){ try{ return await f(); }catch(e){ let m=e.message||String(e); try{ const j=await e.context?.json(); if(j?.error) m=j.error; }catch{} toast(m); console.error(e); } }
+// Edge Function name: game-action
+// Answers yes/no questions and checks guesses against the target's secret character.
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-const LBL = { gender:v=>v==='أنثى'?'هل هي أنثى؟':'هل هو ذكر؟', hair:v=>`هل لون شعره ${v}؟`, category:v=>`هل هو من فئة ${v}؟`, series:v=>`هل هو من أنمي ${v}؟`, country:v=>`هل هو من ${v}؟`, position:v=>`هل مركزه ${v}؟` };
-const TTL = { gender:'الجنس', hair:'لون الشعر', category:'الفئة', series:'الأنمي', country:'الدولة', position:'المركز' };
-function qs(){ const m={}; st.chars.forEach(c=>{ const a={...c.attrs}; if(c.series) a.series=c.series; for(const k in a) (m[k]??=new Set()).add(a[k]); }); return m; }
-const card = (c,act,cls='') => `<button class="ch ${cls}" data-act="${act}" data-id="${c.id}"><i>${esc(c.name[0])}</i><span>${esc(c.name)}</span></button>`;
+const admin = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!)["default"],
+);
 
-function home(){ return `<h2>تحدي الشخصيات</h2>
-<input id="nm" placeholder="اسمك" value="${esc(st.name)}">
-<div class="card col"><select id="pack">${st.packs.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select><button class="p" data-act="create">إنشاء غرفة</button></div>
-<div class="card col"><input id="code" placeholder="كود الغرفة" inputmode="numeric" maxlength="4"><button class="c" data-act="join">انضمام</button></div>`; }
-
-function lobby(){ const r=st.room, host=r.host===st.me, all=st.players.length>1 && st.players.every(p=>p.ready);
-return `<div class="row sp"><h2>الصالة</h2><button data-act="leave">خروج</button></div>
-<div class="card row sp"><span class="mu">كود الغرفة</span><b style="font-size:30px;letter-spacing:6px;color:#FFC857">${esc(r.code)}</b></div>
-<div class="card col">${st.players.map(p=>`<div class="row sp"><span>${esc(p.display_name)}${p.user_id===r.host?' (مضيف)':''}</span><span class="mu">${p.ready?'جاهز':'يختار...'}</span></div>`).join('')}</div>
-${st.secret&&!st.picking?`<div class="card row sp"><span>شخصيتك السرية: <b>${esc(chName(st.secret))}</b></span><button data-act="rep">تغيير</button></div>`:`<div class="mu">اختر شخصيتك السرية، لن يراها خصمك</div><div class="grid">${st.chars.map(c=>card(c,'pick')).join('')}</div>`}
-${host?`<button class="p" data-act="start" ${all?'':'disabled'}>ابدأ اللعب</button>`:`<div class="mu">بانتظار المضيف...</div>`}`; }
-
-const line = m => m.kind==='question'?`<div>${esc(nm(m.user_id))}: ${esc(m.content)}</div>`:m.kind==='guess'?`<div>${esc(nm(m.user_id))} خمّن: ${esc(m.content)}</div>`:`<div class="mu">← ${esc(m.content)}</div>`;
-function sheet(){ const q=qs(); return `<div class="sheet card col"><div class="row sp"><b>اختر سؤالاً</b><button data-act="close">إغلاق</button></div>${Object.keys(q).map(k=>`<div class="mu">${TTL[k]||esc(k)}</div><div class="row wrap">${[...q[k]].map(v=>`<button data-act="ask" data-k="${esc(k)}" data-v="${esc(v)}">${esc(LBL[k]?LBL[k](v):v)}</button>`).join('')}</div>`).join('')}</div>`; }
-function game(){ const r=st.room, mine=r.current_turn===st.me, used=st.moves.filter(m=>m.user_id===st.me&&m.kind==='question').length;
-return `<div class="row sp"><b style="color:var(--cy)">${mine?'دورك':'دور '+esc(nm(r.current_turn))}</b><span class="mu">أسئلتك ${used}/${r.max_questions}</span></div>
-<div class="mu">تخمّن شخصية: ${esc(nm(target()))}</div>
-${st.guess?`<div class="card col"><b>اختر الشخصية التي تظن أنها هي</b><div class="grid">${st.chars.map(c=>card(c,'guess')).join('')}</div><button data-act="cancel">إلغاء</button></div>`:`<div class="grid">${st.chars.map(c=>card(c,'cross',st.crossed.has(c.id)?'x':'')).join('')}</div>`}
-<div class="card col">${st.moves.slice(-6).map(line).join('')||'<span class="mu">لا أسئلة بعد</span>'}</div>
-<div class="row"><button style="flex:1" data-act="sheet" ${mine?'':'disabled'}>الأسئلة</button><button class="p" style="flex:1" data-act="gmode" ${mine?'':'disabled'}>خمّن الآن</button></div>
-${st.sheet?sheet():''}`; }
-function over(){ const i=st.moves.map(m=>m.content).lastIndexOf('صحيح'), g=st.moves[i-1];
-return `<h2>انتهت اللعبة</h2><div class="card">الفائز: <b>${esc(nm(g?.user_id))}</b><br>الشخصية: <b>${esc(g?.content)}</b></div><button class="p" data-act="leave">العودة للرئيسية</button>`; }
-function render(){ const r=st.room; app.innerHTML = !r?home():r.status==='lobby'?lobby():r.status==='playing'?game():over(); }
-
-async function load(){ if(!st.room) return; const id=st.room.id;
-  const [a,b,c,d]=await Promise.all([
-    sb.from('rooms').select('*').eq('id',id).single(),
-    sb.from('room_players').select('*').eq('room_id',id).order('joined_at'),
-    sb.from('moves').select('*').eq('room_id',id).order('id'),
-    sb.from('secrets').select('character_id').eq('room_id',id).eq('user_id',st.me).maybeSingle()]);
-  if(a.data) st.room=a.data; st.players=b.data||[]; st.moves=c.data||[]; st.secret=d.data?.character_id||null;
-  const sig=JSON.stringify([st.room,st.players,st.moves,st.secret]); if(sig!==last){ last=sig; render(); } }
-async function enter(id){
-  const {data:r}=await sb.from('rooms').select('*').eq('id',id).maybeSingle();
-  if(!r){ localStorage.removeItem('room'); return; }
-  st.room=r; localStorage.room=id;
-  st.chars=ok(await sb.from('characters').select('*').eq('pack_id',r.pack_id).order('name'))||[];
-  sb.channel('r'+id)
-    .on('postgres_changes',{event:'*',schema:'public',table:'rooms',filter:'id=eq.'+id},load)
-    .on('postgres_changes',{event:'*',schema:'public',table:'room_players',filter:'room_id=eq.'+id},load)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'moves',filter:'room_id=eq.'+id},load)
-    .subscribe();
-  clearInterval(timer); timer=setInterval(load,4000); last=''; await load(); }
-function reset(){ sb.removeAllChannels(); clearInterval(timer); localStorage.removeItem('room'); Object.assign(st,{room:null,players:[],moves:[],chars:[],secret:null,sheet:false,guess:false,picking:false,crossed:new Set()}); last=''; render(); }
-async function invoke(body){ const {data,error}=await sb.functions.invoke(FN,{body:{room_id:st.room.id,target_user_id:target(),...body}}); if(error) throw error; return data; }
-
-const acts = {
-  create: ()=>run(async()=>{ const d=ok(await sb.rpc('create_room',{p_pack:$('#pack').value,p_name:st.name.trim()||'لاعب'})); await enter(d.id); }),
-  join: ()=>run(async()=>{ const d=ok(await sb.rpc('join_room',{p_code:$('#code').value.trim(),p_name:st.name.trim()||'لاعب'})); await enter(d.id); }),
-  leave: ()=>run(async()=>{ const r=st.room; if(r&&r.status!=='finished') await sb.from('room_players').delete().eq('room_id',r.id).eq('user_id',st.me); reset(); }),
-  pick: d=>run(async()=>{ ok(await sb.from('secrets').upsert({room_id:st.room.id,user_id:st.me,character_id:d.id},{onConflict:'room_id,user_id'})); ok(await sb.from('room_players').update({ready:true}).eq('room_id',st.room.id).eq('user_id',st.me)); st.picking=false; last=''; await load(); }),
-  rep: ()=>{ st.picking=true; render(); },
-  start: ()=>run(async()=>{ ok(await sb.from('rooms').update({status:'playing',current_turn:st.me}).eq('id',st.room.id)); await load(); }),
-  cross: d=>{ st.crossed.has(d.id)?st.crossed.delete(d.id):st.crossed.add(d.id); render(); },
-  sheet: ()=>{ st.sheet=true; render(); },
-  close: ()=>{ st.sheet=false; render(); },
-  gmode: ()=>{ st.guess=true; render(); },
-  cancel: ()=>{ st.guess=false; render(); },
-  ask: d=>run(async()=>{ st.sheet=false; await invoke({action:'ask',attr:d.k,value:d.v,label:LBL[d.k]?LBL[d.k](d.v):d.v}); last=''; await load(); }),
-  guess: d=>run(async()=>{ st.guess=false; const r=await invoke({action:'guess',guess_character_id:d.id}); toast(r.correct?'صحيح! أحسنت':'تخمين خاطئ'); last=''; await load(); })
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-app.addEventListener('click', e=>{ const b=e.target.closest('[data-act]'); if(b) acts[b.dataset.act]?.(b.dataset); });
-app.addEventListener('input', e=>{ if(e.target.id==='nm'){ st.name=e.target.value; localStorage.name=st.name; } });
 
-(async()=>{
-  let {data:{session}}=await sb.auth.getSession();
-  if(!session){ const r=await sb.auth.signInAnonymously(); if(r.error){ toast(r.error.message); return; } session=r.data.session; }
-  st.me=session.user.id;
-  st.packs=(await sb.from('packs').select('*')).data||[];
-  if(localStorage.room) await enter(localStorage.room);
-  render();
-})();
-</script>
-</body>
-</html>
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
+
+  // 1) who is calling
+  const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  const { data: u, error: uErr } = await admin.auth.getUser(token);
+  if (uErr || !u.user) return json({ error: "unauthorized" }, 401);
+  const me = u.user.id;
+
+  // 2) input
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "bad json" }, 400);
+  }
+  const { room_id, action, target_user_id } = body;
+  if (!room_id || !target_user_id || !["ask", "guess"].includes(action)) {
+    return json({ error: "bad request" }, 400);
+  }
+  if (target_user_id === me) return json({ error: "cannot target yourself" }, 400);
+
+  // 3) room checks
+  const { data: room } = await admin.from("rooms").select("*").eq("id", room_id).single();
+  if (!room) return json({ error: "room not found" }, 404);
+  if (room.status !== "playing") return json({ error: "game not running" }, 409);
+  if (room.current_turn !== me) return json({ error: "not your turn" }, 403);
+
+  const { data: players } = await admin
+    .from("room_players")
+    .select("user_id, joined_at")
+    .eq("room_id", room_id)
+    .order("joined_at");
+  const ids = (players ?? []).map((p) => p.user_id);
+  if (!ids.includes(me) || !ids.includes(target_user_id)) {
+    return json({ error: "not in room" }, 403);
+  }
+
+  // 4) the target's secret character (never sent to the client)
+  const { data: secret } = await admin
+    .from("secrets")
+    .select("character_id")
+    .eq("room_id", room_id)
+    .eq("user_id", target_user_id)
+    .single();
+  if (!secret) return json({ error: "target has no secret character" }, 409);
+
+  const { data: ch } = await admin
+    .from("characters")
+    .select("id, name, series, attrs")
+    .eq("id", secret.character_id)
+    .single();
+  if (!ch) return json({ error: "character missing" }, 500);
+
+  const next = ids[(ids.indexOf(me) + 1) % ids.length];
+
+  // 5a) a question
+  if (action === "ask") {
+    const { attr, value, label } = body;
+    if (
+      typeof attr !== "string" || !/^[a-z_]{1,30}$/.test(attr) ||
+      typeof value !== "string" || value.length > 50 ||
+      typeof label !== "string" || label.length > 120
+    ) {
+      return json({ error: "bad question" }, 400);
+    }
+    const { count } = await admin
+      .from("moves")
+      .select("id", { count: "exact", head: true })
+      .eq("room_id", room_id)
+      .eq("user_id", me)
+      .eq("kind", "question");
+    if ((count ?? 0) >= room.max_questions) {
+      return json({ error: "no questions left" }, 409);
+    }
+
+    const yes = attr === "series" ? ch.series === value : ch.attrs?.[attr] === value;
+    const answer = yes ? "نعم" : "لا";
+
+    await admin.from("moves").insert([
+      { room_id, user_id: me, kind: "question", content: label },
+      { room_id, user_id: target_user_id, kind: "answer", content: answer },
+    ]);
+    await admin.from("rooms").update({ current_turn: next }).eq("id", room_id);
+    return json({ answer });
+  }
+
+  // 5b) a final guess
+  const { guess_character_id } = body;
+  if (typeof guess_character_id !== "string") return json({ error: "bad guess" }, 400);
+  const { data: g } = await admin
+    .from("characters")
+    .select("id, name")
+    .eq("id", guess_character_id)
+    .single();
+  const correct = guess_character_id === ch.id;
+
+  await admin.from("moves").insert([
+    { room_id, user_id: me, kind: "guess", content: g?.name ?? "؟" },
+    { room_id, user_id: target_user_id, kind: "answer", content: correct ? "صحيح" : "خطأ" },
+  ]);
+
+  if (correct) {
+    await admin.from("rooms").update({ status: "finished", current_turn: null }).eq("id", room_id);
+    return json({ correct: true, character: ch.name });
+  }
+  await admin.from("rooms").update({ current_turn: next }).eq("id", room_id);
+  return json({ correct: false });
+});
